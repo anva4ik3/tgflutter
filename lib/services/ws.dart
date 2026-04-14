@@ -3,19 +3,20 @@ import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'api.dart';
 
-typedef MessageCallback = void Function(Map<String, dynamic> msg);
-
 class WsService {
-  static const _wsUrl = 'wss://YOUR_RAILWAY_URL/ws'; // замени
+  // Синхронизируем с baseUrl из api.dart — просто меняем https -> wss
+  static String get _wsUrl =>
+      ApiService.baseUrl.replaceFirst('https://', 'wss://').replaceFirst('http://', 'ws://') + '/ws';
 
   WebSocketChannel? _channel;
-  final _controllers = <String, StreamController<Map<String, dynamic>>>{};
   final _globalController = StreamController<Map<String, dynamic>>.broadcast();
+  final _chatControllers = <String, StreamController<Map<String, dynamic>>>{};
   bool _connected = false;
   Timer? _pingTimer;
   Timer? _reconnectTimer;
 
   Stream<Map<String, dynamic>> get messages => _globalController.stream;
+  bool get isConnected => _connected;
 
   Future<void> connect() async {
     if (_connected) return;
@@ -23,34 +24,28 @@ class WsService {
     if (token == null) return;
 
     try {
-      _channel = WebSocketChannel.connect(Uri.parse('$_wsUrl?token=$token'));
+      final uri = Uri.parse('$_wsUrl?token=$token');
+      _channel = WebSocketChannel.connect(uri);
       _connected = true;
 
       _channel!.stream.listen(
         (data) {
-          final msg = jsonDecode(data as String) as Map<String, dynamic>;
-          _globalController.add(msg);
+          try {
+            final msg = jsonDecode(data as String) as Map<String, dynamic>;
+            _globalController.add(msg);
 
-          // Роутим по chatId если есть
-          final chatId = msg['message']?['chat_id'] ?? msg['chatId'];
-          if (chatId != null && _controllers.containsKey(chatId)) {
-            _controllers[chatId]!.add(msg);
-          }
+            // Роутим по chatId
+            final chatId = msg['message']?['chat_id'] ?? msg['chatId'];
+            if (chatId != null && _chatControllers.containsKey(chatId)) {
+              _chatControllers[chatId]!.add(msg);
+            }
+          } catch (_) {}
         },
-        onDone: () {
-          _connected = false;
-          _scheduleReconnect();
-        },
-        onError: (_) {
-          _connected = false;
-          _scheduleReconnect();
-        },
+        onDone: () { _connected = false; _scheduleReconnect(); },
+        onError: (_) { _connected = false; _scheduleReconnect(); },
       );
 
-      // Ping каждые 30 сек
-      _pingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-        send({'type': 'ping'});
-      });
+      _pingTimer = Timer.periodic(const Duration(seconds: 25), (_) => send({'type': 'ping'}));
     } catch (e) {
       _connected = false;
       _scheduleReconnect();
@@ -60,57 +55,56 @@ class WsService {
   void _scheduleReconnect() {
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 3), connect);
+    _reconnectTimer = Timer(const Duration(seconds: 4), connect);
   }
 
   void send(Map<String, dynamic> data) {
     if (_connected && _channel != null) {
-      _channel!.sink.add(jsonEncode(data));
+      try { _channel!.sink.add(jsonEncode(data)); } catch (_) {}
     }
   }
 
-  void joinChat(String chatId) {
-    send({'type': 'join_chat', 'payload': {'chatId': chatId}});
-  }
+  void joinChat(String chatId) =>
+      send({'type': 'join_chat', 'payload': {'chatId': chatId}});
 
-  void sendMessage(String chatId, String content, {String? replyTo}) {
+  void sendMessage(String chatId, String content,
+      {String? replyTo, String type = 'text',
+       String? mediaUrl, String? mediaMime, int? mediaSize, int? mediaDuration}) {
     send({
       'type': 'send_message',
-      'payload': {'chatId': chatId, 'content': content, 'replyTo': replyTo},
+      'payload': {
+        'chatId': chatId, 'content': content, 'type': type,
+        if (replyTo != null) 'replyTo': replyTo,
+        if (mediaUrl != null) 'mediaUrl': mediaUrl,
+        if (mediaMime != null) 'mediaMime': mediaMime,
+        if (mediaSize != null) 'mediaSize': mediaSize,
+        if (mediaDuration != null) 'mediaDuration': mediaDuration,
+      },
     });
   }
 
-  void sendTyping(String chatId, bool isTyping) {
-    send({
-      'type': 'typing',
-      'payload': {'chatId': chatId, 'isTyping': isTyping},
-    });
-  }
+  void sendTyping(String chatId, bool isTyping) =>
+      send({'type': 'typing', 'payload': {'chatId': chatId, 'isTyping': isTyping}});
 
-  void markRead(String chatId) {
-    send({'type': 'mark_read', 'payload': {'chatId': chatId}});
-  }
+  void markRead(String chatId, {String? messageId}) =>
+      send({'type': 'mark_read', 'payload': {'chatId': chatId, if (messageId != null) 'messageId': messageId}});
 
-  void deleteMessage(String chatId, String messageId) {
-    send({
-      'type': 'delete_message',
-      'payload': {'chatId': chatId, 'messageId': messageId},
-    });
-  }
+  void deleteMessage(String chatId, String messageId) =>
+      send({'type': 'delete_message', 'payload': {'chatId': chatId, 'messageId': messageId}});
 
-  void editMessage(String chatId, String messageId, String content) {
-    send({
-      'type': 'edit_message',
-      'payload': {'chatId': chatId, 'messageId': messageId, 'content': content},
-    });
-  }
+  void editMessage(String chatId, String messageId, String content) =>
+      send({'type': 'edit_message', 'payload': {'chatId': chatId, 'messageId': messageId, 'content': content}});
 
-  // Получить стрим для конкретного чата
+  void react(String chatId, String messageId, String emoji) =>
+      send({'type': 'react', 'payload': {'chatId': chatId, 'messageId': messageId, 'emoji': emoji}});
+
+  void forwardMessage(String fromChatId, String messageId, String toChatId) =>
+      send({'type': 'forward_message', 'payload': {'fromChatId': fromChatId, 'messagId': messageId, 'toChatId': toChatId}});
+
   Stream<Map<String, dynamic>> chatStream(String chatId) {
-    if (!_controllers.containsKey(chatId)) {
-      _controllers[chatId] = StreamController<Map<String, dynamic>>.broadcast();
-    }
-    return _controllers[chatId]!.stream;
+    _chatControllers.putIfAbsent(
+        chatId, () => StreamController<Map<String, dynamic>>.broadcast());
+    return _chatControllers[chatId]!.stream;
   }
 
   void disconnect() {
