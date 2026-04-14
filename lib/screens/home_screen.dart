@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../theme.dart';
+import '../theme.dart';
 import 'chats/chats_screen.dart';
+import 'contacts/contacts_screen.dart';
 import 'channels/channels_screen.dart';
 import 'profile/profile_screen.dart';
 
@@ -15,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final _screens = const [
     ChatsScreen(),
+    ContactsScreen(),
     ChannelsScreen(),
     ProfileScreen(),
   ];
@@ -25,16 +27,21 @@ class _HomeScreenState extends State<HomeScreen> {
       body: IndexedStack(index: _index, children: _screens),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppColors.bg4, width: 0.5)),
+          border: Border(top: BorderSide(color: AppColors.bg3, width: 0.5)),
         ),
         child: BottomNavigationBar(
           currentIndex: _index,
           onTap: (i) => setState(() => _index = i),
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
+              icon: Icon(Icons.chat_bubble_outline_rounded),
+              activeIcon: Icon(Icons.chat_bubble_rounded),
               label: 'Чаты',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline_rounded),
+              activeIcon: Icon(Icons.people_rounded),
+              label: 'Контакты',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.explore_outlined),
@@ -42,8 +49,8 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Каналы',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
+              icon: Icon(Icons.person_outline_rounded),
+              activeIcon: Icon(Icons.person_rounded),
               label: 'Профиль',
             ),
           ],
