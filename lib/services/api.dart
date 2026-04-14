@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const baseUrl = 'https://YOUR_RAILWAY_URL'; // замени на свой URL
+  static const baseUrl = 'https://tgback-production.up.railway.app'; // замени на свой URL
   static const _storage = FlutterSecureStorage();
   static const _timeout = Duration(seconds: 15);
 
