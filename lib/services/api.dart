@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  // Замени на свой Railway URL
   static const baseUrl = 'https://tgback-production.up.railway.app';
   static const _storage = FlutterSecureStorage();
   static const _timeout = Duration(seconds: 20);
@@ -180,14 +179,11 @@ class ApiService {
     return data['summary'] as String;
   }
 
-  // Channel posts
+  // --- Channel posts ---
   static Future<Map<String, dynamic>> createChannelPost(
       String channelId, Map<String, dynamic> body) async =>
-      (await post('/api/channels/\$channelId/posts', body)) as Map<String, dynamic>;
+      (await post('/api/channels/$channelId/posts', body)) as Map<String, dynamic>;
 }
-
-
-  // Channel posts
 
 class ApiException implements Exception {
   final String message;
@@ -195,5 +191,4 @@ class ApiException implements Exception {
   ApiException(this.message, this.statusCode);
   @override
   String toString() => message;
-
-  // Channel posts
+}
